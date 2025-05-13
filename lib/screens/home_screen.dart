@@ -160,7 +160,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 16),
 
             // Vana kontrolü
-            ValveControlCard(service: service),
+            //  ValveControlCard(service: service),
 
             const SizedBox(height: 16),
 

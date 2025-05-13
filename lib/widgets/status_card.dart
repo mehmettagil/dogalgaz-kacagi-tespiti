@@ -60,7 +60,7 @@ class StatusCard extends StatelessWidget {
                 ),
               ],
             ),
-            if (isAlarm) ...[
+            if (0 == 1) ...[
               const Divider(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,

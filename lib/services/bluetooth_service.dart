@@ -362,7 +362,6 @@ class BluetoothService extends ChangeNotifier {
     List<String> results = [];
 
     // Veri çok parçalı geldiğinde, tam bir JSON yapısı oluşana kadar biriktirme stratejisi
-    // Örnek: ":554,"alar", "m":1,"duru", "m":"GA", "Z_YUKSEK"} şeklinde parçalar birleştirilmeli
 
     // Eğer tampon çok uzarsa ve hala işlenemeyen veriler varsa, tamponu temizleyelim
     if (input.length > 1000) {
@@ -370,6 +369,9 @@ class BluetoothService extends ChangeNotifier {
       _dataBuffer =
           input.substring(input.length - 500); // Son 500 karakteri tut
     }
+
+    // Tamponu temizle - fazla boşlukları ve yeni satırları kaldır
+    input = input.replaceAll(RegExp(r'\s+'), ' ').trim();
 
     // Elimizde tam bir JSON olup olmadığını kontrol et
     try {
@@ -379,6 +381,12 @@ class BluetoothService extends ChangeNotifier {
         if (endIndex > startIndex) {
           // Tam bir JSON var
           String potentialJson = input.substring(startIndex, endIndex + 1);
+
+          // JSON'u temizle - başında veya sonunda istenmeyen karakterleri kaldır
+          potentialJson = potentialJson.trim();
+
+          // JSON içindeki problemli karakterleri düzelt
+          potentialJson = _cleanJsonString(potentialJson);
 
           // Bu gerçekten geçerli bir JSON mu kontrol et
           try {
@@ -397,6 +405,12 @@ class BluetoothService extends ChangeNotifier {
           } catch (e) {
             // JSON geçerli değil, muhtemelen parçalı hala
             log('Geçersiz JSON formatı: $e');
+
+            // Eğer parantez arasında tam veri yoksa ve tampon çok uzarsa, temizle
+            if (_dataBuffer.length > 200) {
+              _dataBuffer = "";
+              log('JSON işlenemediği için tampon temizlendi');
+            }
           }
         }
       }
@@ -405,6 +419,24 @@ class BluetoothService extends ChangeNotifier {
     }
 
     return results;
+  }
+
+  // JSON string'ini temizleyen yardımcı fonksiyon
+  String _cleanJsonString(String jsonStr) {
+    // Fazla boşlukları ve yeni satırları kaldır
+    jsonStr = jsonStr.replaceAll(RegExp(r'\s+'), ' ').trim();
+
+    // JSON içinde olabilecek birden fazla JSON'u engelle
+    final firstOpenBrace = jsonStr.indexOf('{');
+    final lastCloseBrace = jsonStr.lastIndexOf('}');
+
+    if (firstOpenBrace != -1 &&
+        lastCloseBrace != -1 &&
+        firstOpenBrace < lastCloseBrace) {
+      return jsonStr.substring(firstOpenBrace, lastCloseBrace + 1);
+    }
+
+    return jsonStr;
   }
 
   // Eski JSON çıkarma metodu (geriye uyumluluk için)
@@ -420,23 +452,32 @@ class BluetoothService extends ChangeNotifier {
         "${timestamp.hour}:${timestamp.minute}:${timestamp.second}.${timestamp.millisecond}";
 
     debugPrint(
-        '[$formattedTime] Alarm kontrolü - Gaz: ${data.gazSeviyesi}, Alarm: ${data.alarmDurumu}, Yüksek: ${data.isGazYuksek}');
+        '[$formattedTime] Alarm kontrolü - Gaz: ${data.gazSeviyesi}, Alarm: ${data.alarmDurumu}, Yüksek: ${data.isGazYuksek}, Durum: ${data.durum}');
 
-    // Gaz seviyesi 300'den büyükse veya alarm durumu true ise
-    if (data.isGazYuksek || data.alarmDurumu) {
+    // Acil durum (GAZ_YUKSEK veya alarm=1 veya durum=GAZ_YUKSEK)
+    bool acilDurum = data.isGazYuksek ||
+        data.alarmDurumu ||
+        data.durum.toUpperCase().contains('GAZ_YUKSEK') ||
+        data.durum.toUpperCase().contains('YUKSEK');
+
+    if (acilDurum) {
       // Eğer önceki durum alarm değilse alarmı çalıştır
       if (!_sonAlarmDurumu) {
         _alarmService.playAlarm();
         _sonAlarmDurumu = true;
         debugPrint(
-            '[$formattedTime] Alarm başlatıldı: Gaz seviyesi=${data.gazSeviyesi}, AlarmDurumu=${data.alarmDurumu}');
+            '[$formattedTime] Alarm başlatıldı: Gaz seviyesi=${data.gazSeviyesi}, AlarmDurumu=${data.alarmDurumu}, Durum=${data.durum}');
+        // UI güncelleme
+        notifyListeners();
       }
-    } else {
+    } else if (data.durum.toUpperCase().contains('NORMAL')) {
       // Eğer önceki durum alarm ise alarmı durdur
       if (_sonAlarmDurumu) {
         _alarmService.stopAlarm();
         _sonAlarmDurumu = false;
         debugPrint('[$formattedTime] Alarm durduruldu: Durum normale döndü');
+        // UI güncelleme
+        notifyListeners();
       }
     }
   }
