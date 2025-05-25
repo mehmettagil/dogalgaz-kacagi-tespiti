@@ -100,7 +100,7 @@ class GasLevelChart extends StatelessWidget {
                   color: Colors.orange,
                 ),
                 const SizedBox(width: 4),
-                const Text('Eşik Değeri (300)'),
+                const Text('Eşik Değeri (200)'),
               ],
             ),
           ],
